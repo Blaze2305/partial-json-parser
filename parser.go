@@ -23,6 +23,14 @@ func ParseMalformedString(malformed string, options options.TypeOptions) (string
 
 }
 
+func skipBlank(text string, index int) int {
+	i := index
+	for i < len(text) && text[i] == ' ' {
+		i += 1
+	}
+	return i
+}
+
 func parseJson(jsonString string, allowed options.TypeOptions) (string, error) {
 	completion, err := completeAny(jsonString, allowed)
 
@@ -35,7 +43,6 @@ func parseJson(jsonString string, allowed options.TypeOptions) (string, error) {
 
 func completeAny(jsonString string, allowed options.TypeOptions) (*jsonCompletion, error) {
 	value := strings.TrimLeft(jsonString, " ")
-
 	switch char := value[0]; {
 	case char == '"':
 		return completeString(value, allowed)
@@ -71,12 +78,11 @@ func completeString(jsonString string, allowed options.TypeOptions) (*jsonComple
 
 	if index < stringLength {
 		return &jsonCompletion{
-			index:  index + 1,
-			string: "",
+			index: index + 1,
 		}, nil
 	}
 
-	if options.STR&allowed != allowed {
+	if options.STR|allowed != allowed {
 		return nil, fmt.Errorf("cannot complete malformed json")
 	}
 
@@ -140,7 +146,62 @@ func completeString(jsonString string, allowed options.TypeOptions) (*jsonComple
 }
 
 func completeArray(jsonString string, allowed options.TypeOptions) (*jsonCompletion, error) {
-	return nil, nil
+	i := 1
+	j := 1
+
+	for j < len(jsonString) {
+		j = skipBlank(jsonString, j)
+		if jsonString[j] == ']' {
+			return &jsonCompletion{
+				index: j + 1,
+			}, nil
+		}
+
+		result, err := completeAny(jsonString[j:], allowed)
+		if err != nil { // cant complete the array, so just end it and make it an empty array
+			if options.ARR|allowed == allowed {
+				return &jsonCompletion{
+					index:  i,
+					string: "]",
+				}, nil
+			}
+		}
+
+		// if the string in the result has some char in it, that means we can add the final ] and complete the array, because it means that all the item(s) in the array is fine
+		if result.string != "" {
+			if options.ARR|allowed == allowed {
+				return &jsonCompletion{
+					index:  j + result.index,
+					string: result.string + "]",
+				}, nil
+			}
+			return nil, fmt.Errorf("cannot parse string with given options")
+		}
+
+		// this means that the first item in the array is fine, but we need to check the other items
+		j += result.index
+		i = j
+
+		j = skipBlank(jsonString, j)
+		if jsonString[j] == ',' {
+			j += 1
+		} else if jsonString[j] == ']' {
+			return &jsonCompletion{
+				index: j + 1,
+			}, nil
+		} else {
+			return nil, fmt.Errorf("MalformedJSON(expected \",\" or \"]\" got %c)", jsonString[j])
+		}
+	}
+
+	// if we've reached the end of the string, we throw the ] at the last known good point and return
+	if options.ARR|allowed == allowed {
+		return &jsonCompletion{
+			index:  i,
+			string: "]",
+		}, nil
+	}
+	return nil, fmt.Errorf("cannot parse string with given options")
 }
 
 func completeNumber(jsonString string, allowed options.TypeOptions) (*jsonCompletion, error) {
