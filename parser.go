@@ -59,7 +59,106 @@ func completeAny(jsonString string, allowed options.TypeOptions, topLevel bool) 
 }
 
 func completeObject(jsonString string, allowed options.TypeOptions) (*jsonCompletion, error) {
-	return nil, nil
+
+	i := 1
+	j := 1
+	length := len(jsonString)
+
+	for j < length {
+		j = skipBlank(jsonString, j)
+		if j >= length {
+			break
+		}
+
+		if jsonString[j] == '}' {
+			return &jsonCompletion{
+				index: j + 1,
+			}, nil
+		}
+
+		key, err := completeString(jsonString[j:], allowed)
+		if err != nil {
+			// if we can't complete the key, then we just do the next best thing and complete the obj as an empty obj
+			if options.OBJ|allowed == allowed {
+				return &jsonCompletion{
+					index:  i,
+					string: "}",
+				}, nil
+			}
+			return nil, fmt.Errorf("cannot parse object with given options")
+		}
+
+		// if we can parse the key, we move the index by that amount and continue parsing
+		if key.string == "" {
+			j += key.index
+		}
+
+		j = skipBlank(jsonString, j)
+		if j >= length {
+			break
+		}
+
+		if jsonString[j] != ':' {
+			return nil, fmt.Errorf("MalformedJSON( expected \":\" got %c)", jsonString[j])
+		}
+		j += 1
+
+		j = skipBlank(jsonString, j)
+		if j >= length {
+			break
+		}
+
+		result, err := completeAny(jsonString[j:], allowed, false)
+		if err != nil { // cant complete the objects value, so just end it and make it an empty object again
+			if options.OBJ|allowed == allowed {
+				return &jsonCompletion{
+					index:  i,
+					string: "}",
+				}, nil
+			}
+			return nil, fmt.Errorf("cannot parse object with given options")
+		}
+
+		// if the string in the result has some char in it, that means we can add the final } and complete the object, because it means that all the item(s) in the object are fine
+		if result.string != "" {
+			if options.OBJ|allowed == allowed {
+				return &jsonCompletion{
+					index:  j + result.index,
+					string: result.string + "}",
+				}, nil
+			}
+			return nil, fmt.Errorf("cannot parse object with given options")
+		}
+
+		// this means that the first key value par in the object are fine, but we need to check the other items
+		j += result.index
+		i = j
+
+		j = skipBlank(jsonString, j)
+		if j >= length {
+			break
+		}
+
+		if jsonString[j] == ',' {
+			j += 1
+		} else if jsonString[j] == '}' {
+			return &jsonCompletion{
+				index: j + 1,
+			}, nil
+		} else {
+			return nil, fmt.Errorf("MalformedJSON(expected \",\" or \"}\" got %c)", jsonString[j])
+		}
+	}
+
+	// if we've reached the end of the string, we throw the ] at the last known good point and return
+	if options.OBJ|allowed == allowed {
+		return &jsonCompletion{
+			index:  i,
+			string: "}",
+		}, nil
+	}
+	return nil, fmt.Errorf("cannot parse object with given options")
+
 }
 
 func completeString(jsonString string, allowed options.TypeOptions) (*jsonCompletion, error) {
@@ -148,10 +247,11 @@ func completeString(jsonString string, allowed options.TypeOptions) (*jsonComple
 func completeArray(jsonString string, allowed options.TypeOptions) (*jsonCompletion, error) {
 	i := 1
 	j := 1
+	length := len(jsonString)
 
-	for j < len(jsonString) {
+	for j < length {
 		j = skipBlank(jsonString, j)
-		if j >= len(jsonString) {
+		if j >= length {
 			break
 		}
 
@@ -169,6 +269,7 @@ func completeArray(jsonString string, allowed options.TypeOptions) (*jsonComplet
 					string: "]",
 				}, nil
 			}
+			return nil, fmt.Errorf("cannot parse array with given options")
 		}
 
 		// if the string in the result has some char in it, that means we can add the final ] and complete the array, because it means that all the item(s) in the array is fine
@@ -179,7 +280,7 @@ func completeArray(jsonString string, allowed options.TypeOptions) (*jsonComplet
 					string: result.string + "]",
 				}, nil
 			}
-			return nil, fmt.Errorf("cannot parse string with given options")
+			return nil, fmt.Errorf("cannot parse array with given options")
 		}
 
 		// this means that the first item in the array is fine, but we need to check the other items
@@ -187,7 +288,7 @@ func completeArray(jsonString string, allowed options.TypeOptions) (*jsonComplet
 		i = j
 
 		j = skipBlank(jsonString, j)
-		if j >= len(jsonString) {
+		if j >= length {
 			break
 		}
 
@@ -209,7 +310,7 @@ func completeArray(jsonString string, allowed options.TypeOptions) (*jsonComplet
 			string: "]",
 		}, nil
 	}
-	return nil, fmt.Errorf("cannot parse string with given options")
+	return nil, fmt.Errorf("cannot parse array with given options")
 }
 
 func completeNumber(jsonString string, allowed options.TypeOptions, topLevel bool) (*jsonCompletion, error) {
