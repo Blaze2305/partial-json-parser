@@ -32,7 +32,6 @@ func sendPartialJson(c chan<- string) {
 					"sw/sh":true,
 					"bd/sp":false
 				},
-				"coolness":Infinity
 			}
 		]
 
@@ -66,8 +65,7 @@ loop:
 			default:
 				fmt.Println("received :", x)
 				str += x
-				// setting format arg to false here, because the input contains Infinity and go doesnt like that ;-;
-				jsonValue, err := partialparser.ParseMalformedString(str, options.ALL, false)
+				jsonValue, err := partialparser.ParseMalformedString(str, options.ALL, true)
 				if err != nil {
 					fmt.Println("err", err)
 					continue
