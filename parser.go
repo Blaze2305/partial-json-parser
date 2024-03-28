@@ -21,7 +21,15 @@ func formatJson(jsonString string) string {
 	return dest.String()
 }
 
-func ParseMalformedString(malformed string, options options.TypeOptions) (string, error) {
+// ParseMalformedString - Parses a malformed / incomplete string and tries to see if it can be compelted. Takes the string, options on what types to consider and formating enable bool
+//
+// If the string cannot be parsed/fixed, returns an error , else returns the "complete" string
+//
+// If the format bool is set to true , golangs internal encoding/json parser is using to parse the fixed string and pretty print it using json.Indent.
+// NOTE: if your json contains +/- INF or NaN , and format is `true` The field will be missing as go does not support that in. See notes in the json.Marshall function [here](https://pkg.go.dev/encoding/json#Marshal)
+//
+// Options is a list of all the types the parser can try using to fix the json. Check the Readme for more info on how to use it.
+func ParseMalformedString(malformed string, options options.TypeOptions, format bool) (string, error) {
 
 	str := strings.TrimSpace(malformed)
 	if len(str) == 0 {
@@ -33,7 +41,11 @@ func ParseMalformedString(malformed string, options options.TypeOptions) (string
 		return "", err
 	}
 
-	return formatJson(jsonString), nil
+	if format {
+		return formatJson(jsonString), nil
+	} else {
+		return jsonString, err
+	}
 }
 
 func skipBlank(text string, index int) int {
@@ -68,6 +80,109 @@ func completeAny(jsonString string, allowed options.TypeOptions, topLevel bool) 
 		return completeArray(jsonString, allowed)
 	case char == '{':
 		return completeObject(jsonString, allowed)
+	case char == '-': // handles negative numbers
+		if len(jsonString) == 1 {
+			return nil, fmt.Errorf("cannot parse singular '-'")
+		} else if jsonString[1] != 'I' { // this just checks if we're dealing with negative inf
+			return completeNumber(jsonString, allowed, topLevel)
+		}
+
+	}
+
+	// handle NULL
+	if strings.HasPrefix(jsonString, "null") {
+		return &jsonCompletion{
+			index: 4,
+		}, nil
+	}
+
+	if strings.HasPrefix("null", jsonString) {
+		if options.NULL|allowed == allowed {
+			return &jsonCompletion{
+				index: 0,
+			}, nil
+		}
+		return nil, fmt.Errorf("cannot parse null with given options")
+	}
+
+	// handle boolean true
+	if strings.HasPrefix(jsonString, "true") {
+		return &jsonCompletion{
+			index: 4,
+		}, nil
+	}
+
+	if strings.HasPrefix("true", jsonString) {
+		if options.BOOL|allowed == allowed {
+			return &jsonCompletion{
+				index: 0,
+			}, nil
+		}
+		return nil, fmt.Errorf("cannot parse bool with given options")
+	}
+
+	// handle boolean false
+	if strings.HasPrefix(jsonString, "false") {
+		return &jsonCompletion{
+			index: 5,
+		}, nil
+	}
+
+	if strings.HasPrefix("false", jsonString) {
+		if options.BOOL|allowed == allowed {
+			return &jsonCompletion{
+				index: 0,
+			}, nil
+		}
+		return nil, fmt.Errorf("cannot parse bool with given options")
+	}
+
+	// handle infinity
+	if strings.HasPrefix(jsonString, "Infinity") {
+		return &jsonCompletion{
+			index: 8,
+		}, nil
+	}
+
+	if strings.HasPrefix("Infinity", jsonString) {
+		if options.INFINITY|allowed == allowed {
+			return &jsonCompletion{
+				index: 0,
+			}, nil
+		}
+		return nil, fmt.Errorf("cannot parse Infinity with given options")
+	}
+
+	// handle negative infinity
+	if strings.HasPrefix(jsonString, "-Infinity") {
+		return &jsonCompletion{
+			index: 9,
+		}, nil
+	}
+
+	if strings.HasPrefix("-Infinity", jsonString) {
+		if options.NEG_INFINITY|allowed == allowed {
+			return &jsonCompletion{
+				index: 0,
+			}, nil
+		}
+		return nil, fmt.Errorf("cannot parse -Infinity with given options")
+	}
+
+	// handle NaN
+	if strings.HasPrefix(jsonString, "NaN") {
+		return &jsonCompletion{
+			index: 3,
+		}, nil
+	}
+
+	if strings.HasPrefix("NaN", jsonString) {
+		if options.NAN|allowed == allowed {
+			return &jsonCompletion{
+				index: 0,
+			}, nil
+		}
+		return nil, fmt.Errorf("cannot parse NaN with given options")
 	}
 
 	return nil, fmt.Errorf("MalformedJSON(unexpected char %c)", jsonString[0])
