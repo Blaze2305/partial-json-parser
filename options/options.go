@@ -12,6 +12,11 @@ const (
 	BOOL
 	NAN
 	INFINITY
+	NEG_INFINITY
 
-	ALL TypeOptions = 1<<iota - 1
+	INF        = INFINITY | NEG_INFINITY
+	SPECIAL    = NULL | BOOL | INF | NAN
+	ATOM       = STR | NUM | SPECIAL
+	COLLECTION = ARR | OBJ
+	ALL        = ATOM | COLLECTION
 )
