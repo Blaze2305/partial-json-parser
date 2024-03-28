@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/blaze2305/partial-json-parser/options"
 )
@@ -37,36 +38,39 @@ func ParseMalformedString(malformed string, options options.TypeOptions) (string
 
 func skipBlank(text string, index int) int {
 	i := index
-	for i < len(text) && (text[i] == ' ' || text[i] == '\t') {
+	for i < len(text) && (unicode.IsSpace(rune(text[i])) || text[i] == '\n') {
 		i += 1
 	}
 	return i
 }
 
 func parseJson(jsonString string, allowed options.TypeOptions) (string, error) {
-	completion, err := completeAny(jsonString, allowed, true)
+
+	i := skipBlank(jsonString, 0)
+	value := jsonString[i:]
+
+	completion, err := completeAny(value, allowed, true)
 
 	if err != nil {
 		return "", fmt.Errorf("not enough data to fix json string %s", err)
 	}
 
-	return jsonString[:completion.index] + completion.string, nil
+	return value[:completion.index] + completion.string, nil
 }
 
 func completeAny(jsonString string, allowed options.TypeOptions, topLevel bool) (*jsonCompletion, error) {
-	value := strings.TrimLeft(jsonString, " \t")
-	switch char := value[0]; {
+	switch char := jsonString[0]; {
 	case char == '"':
-		return completeString(value, allowed)
+		return completeString(jsonString, allowed)
 	case strings.ContainsRune("0123456789", rune(char)):
-		return completeNumber(value, allowed, topLevel)
+		return completeNumber(jsonString, allowed, topLevel)
 	case char == '[':
-		return completeArray(value, allowed)
+		return completeArray(jsonString, allowed)
 	case char == '{':
-		return completeObject(value, allowed)
+		return completeObject(jsonString, allowed)
 	}
 
-	return nil, fmt.Errorf("MalformedJSON(unexpected char %c)", value[0])
+	return nil, fmt.Errorf("MalformedJSON(unexpected char %c)", jsonString[0])
 
 }
 
@@ -89,8 +93,9 @@ func completeObject(jsonString string, allowed options.TypeOptions) (*jsonComple
 		}
 
 		key, err := completeString(jsonString[j:], allowed)
-		if err != nil {
-			// if we can't complete the key, then we just do the next best thing and complete the obj as an empty obj
+		if err != nil || key.string != "" {
+			// if we can't parsek the key, then we just do the next best thing and complete the obj as an empty obj
+			// same if the key is incomplete
 			if options.OBJ|allowed == allowed {
 				return &jsonCompletion{
 					index:  i,
@@ -101,9 +106,7 @@ func completeObject(jsonString string, allowed options.TypeOptions) (*jsonComple
 		}
 
 		// if we can parse the key, we move the index by that amount and continue parsing
-		if key.string == "" {
-			j += key.index
-		}
+		j += key.index
 
 		j = skipBlank(jsonString, j)
 		if j >= length {
