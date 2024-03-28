@@ -1,6 +1,8 @@
 package partialparser
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -12,6 +14,12 @@ type jsonCompletion struct {
 	string string
 }
 
+func formatJson(jsonString string) string {
+	dest := &bytes.Buffer{}
+	json.Indent(dest, []byte(jsonString), "", " ")
+	return dest.String()
+}
+
 func ParseMalformedString(malformed string, options options.TypeOptions) (string, error) {
 
 	str := strings.TrimSpace(malformed)
@@ -19,13 +27,17 @@ func ParseMalformedString(malformed string, options options.TypeOptions) (string
 		return "", fmt.Errorf("string is empty; cannot parse")
 	}
 
-	return parseJson(str, options)
+	jsonString, err := parseJson(malformed, options)
+	if err != nil {
+		return "", err
+	}
 
+	return formatJson(jsonString), nil
 }
 
 func skipBlank(text string, index int) int {
 	i := index
-	for i < len(text) && text[i] == ' ' {
+	for i < len(text) && (text[i] == ' ' || text[i] == '\t') {
 		i += 1
 	}
 	return i
@@ -35,14 +47,14 @@ func parseJson(jsonString string, allowed options.TypeOptions) (string, error) {
 	completion, err := completeAny(jsonString, allowed, true)
 
 	if err != nil {
-		return "", fmt.Errorf("not enough data to fix json string")
+		return "", fmt.Errorf("not enough data to fix json string %s", err)
 	}
 
 	return jsonString[:completion.index] + completion.string, nil
 }
 
 func completeAny(jsonString string, allowed options.TypeOptions, topLevel bool) (*jsonCompletion, error) {
-	value := strings.TrimLeft(jsonString, " ")
+	value := strings.TrimLeft(jsonString, " \t")
 	switch char := value[0]; {
 	case char == '"':
 		return completeString(value, allowed)
