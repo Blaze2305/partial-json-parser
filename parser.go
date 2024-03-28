@@ -32,7 +32,7 @@ func skipBlank(text string, index int) int {
 }
 
 func parseJson(jsonString string, allowed options.TypeOptions) (string, error) {
-	completion, err := completeAny(jsonString, allowed)
+	completion, err := completeAny(jsonString, allowed, true)
 
 	if err != nil {
 		return "", fmt.Errorf("not enough data to fix json string")
@@ -41,13 +41,13 @@ func parseJson(jsonString string, allowed options.TypeOptions) (string, error) {
 	return jsonString[:completion.index] + completion.string, nil
 }
 
-func completeAny(jsonString string, allowed options.TypeOptions) (*jsonCompletion, error) {
+func completeAny(jsonString string, allowed options.TypeOptions, topLevel bool) (*jsonCompletion, error) {
 	value := strings.TrimLeft(jsonString, " ")
 	switch char := value[0]; {
 	case char == '"':
 		return completeString(value, allowed)
 	case strings.ContainsRune("0123456789", rune(char)):
-		return completeNumber(value, allowed)
+		return completeNumber(value, allowed, topLevel)
 	case char == '[':
 		return completeArray(value, allowed)
 	case char == '{':
@@ -151,13 +151,17 @@ func completeArray(jsonString string, allowed options.TypeOptions) (*jsonComplet
 
 	for j < len(jsonString) {
 		j = skipBlank(jsonString, j)
+		if j >= len(jsonString) {
+			break
+		}
+
 		if jsonString[j] == ']' {
 			return &jsonCompletion{
 				index: j + 1,
 			}, nil
 		}
 
-		result, err := completeAny(jsonString[j:], allowed)
+		result, err := completeAny(jsonString[j:], allowed, false)
 		if err != nil { // cant complete the array, so just end it and make it an empty array
 			if options.ARR|allowed == allowed {
 				return &jsonCompletion{
@@ -183,6 +187,10 @@ func completeArray(jsonString string, allowed options.TypeOptions) (*jsonComplet
 		i = j
 
 		j = skipBlank(jsonString, j)
+		if j >= len(jsonString) {
+			break
+		}
+
 		if jsonString[j] == ',' {
 			j += 1
 		} else if jsonString[j] == ']' {
@@ -204,6 +212,33 @@ func completeArray(jsonString string, allowed options.TypeOptions) (*jsonComplet
 	return nil, fmt.Errorf("cannot parse string with given options")
 }
 
-func completeNumber(jsonString string, allowed options.TypeOptions) (*jsonCompletion, error) {
-	return nil, nil
+func completeNumber(jsonString string, allowed options.TypeOptions, topLevel bool) (*jsonCompletion, error) {
+
+	i := 1
+	length := len(jsonString)
+
+	// move forwards while we still have nummbers ;
+	// NOTE : this includes exponents in the form x-/+ey and decimals
+	for i < length && strings.ContainsRune("0123456789.+-eE", rune(jsonString[i])) {
+		i += 1
+	}
+
+	specialNum := false
+	for strings.ContainsRune(".-+eE", rune(jsonString[i-1])) {
+		i -= 1
+		specialNum = true
+	}
+
+	if specialNum || i == length && !topLevel {
+		if options.NUM|allowed == allowed {
+			return &jsonCompletion{
+				index: i,
+			}, nil
+		}
+		return nil, fmt.Errorf("cannot parse number with given options")
+	}
+
+	return &jsonCompletion{
+		index: i,
+	}, nil
 }
