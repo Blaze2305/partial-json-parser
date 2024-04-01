@@ -1,0 +1,70 @@
+---
+layout: home
+---
+<div id="editor-wrapper" >
+  <div id="editor"></div> 
+  <div id="output"></div> 
+</div>
+
+<style>
+
+  .wrapper{
+   max-width: 100% 
+  }
+
+  #editor-wrapper{
+    display: flex;
+    gap: 10px;
+    justify-content: space-evenly;
+  }
+
+  #editor{
+    width: 100%;
+    height: 70vh;
+  }
+
+  .tiptap{
+    height: 100%;
+    margin: 10px;
+  }
+
+  .ProseMirror:focus {
+    outline: none;
+  }
+
+
+  #output{
+    width: 100%;
+    height: 70vh;
+  }
+</style>
+
+<script type="module">
+
+  import * as monaco from 'https://cdn.jsdelivr.net/npm/monaco-editor@0.39.0/+esm';
+
+const mainEditor = monaco.editor.create(document.querySelector('#editor'),{
+    theme:'vs-dark',
+    language: 'javascript',
+    minimap: {
+      enabled: false,
+    }
+  });
+
+const output = monaco.editor.create(document.querySelector('#output'),{
+    theme:'vs-dark',
+    language: 'javascript',
+    readOnly: true,
+    minimap: {
+      enabled: false,
+    }
+  });
+
+mainEditor.getModel().onDidChangeContent( (e) => {
+    var text = mainEditor.getModel().getValue()
+    output.getModel().setValue(parsePartialJson(text))
+})
+
+
+
+</script>

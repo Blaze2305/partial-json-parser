@@ -1,0 +1,13 @@
+title: Partial JSON Parser 
+email: pranav.23.b@gmail.com
+description: >- # this means to ignore newlines until "baseurl:"
+  Test out the partial json parser in real time
+baseurl: "" # the subpath of your site, e.g. /blog
+url: "" # the base hostname & protocol for your site, e.g. http://example.com
+github_username:  blaze2305
+
+# Build settings
+theme: minima
+plugins:
+  - jekyll-feed
+
