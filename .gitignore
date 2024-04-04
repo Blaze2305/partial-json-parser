@@ -1,11 +1,13 @@
 .env
 build/
+.DS_Store
 
 # editor
 .helix
 .ignore
 
 # jekyll stuff
+docs/.DS_Store
 docs/_site
 docs/.sass-cache
 docs/.jekyll-cache
