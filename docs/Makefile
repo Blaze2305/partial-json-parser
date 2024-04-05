@@ -9,5 +9,7 @@ build: wasm
 wasm:
 	make -C wasm build-wasm 
 
-
+install:
+	bundle install
+	bundle update
 
