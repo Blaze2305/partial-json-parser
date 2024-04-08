@@ -4,6 +4,8 @@ Inspired by a reddit post in r/golang and a python library with the same name. T
 
 Sometimes when you're streaming json data , there could be lag. And before we receive the last bit of data, the JSON is broken and malformed. But we still might want to display it. This is where the partial-json-parser comes in.
 
+Check out the demo [here](https://blaze2305.github.io/partial-json-parser/)
+
 ## Installation
 ```bash
 # Install the lib.
